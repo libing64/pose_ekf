@@ -60,7 +60,6 @@ class pose_ekf {
   void update_gps(Vector3d pos, Vector3d vel);
   void update_acc(Vector3d acc);
   void update_magnetic(Vector3d mag);
-  void update_linear_acc(Vector3d linear_acc, Vector3d acc);
 
   void set_imu_freq(double freq) { this->imu_freq = freq; }
   void set_Q_matrix(double dt);
