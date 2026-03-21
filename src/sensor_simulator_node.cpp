@@ -17,13 +17,22 @@
 #include <sensor_msgs/NavSatStatus.h>
 #include <sensor_msgs/Range.h>
 
+#include "tf/transform_broadcaster.h"
+
+// RTKLIB defines a "lock" macro that conflicts with boost::signals2/C++ std
+#include "rtklib.h"
+#ifdef lock
+#undef lock
+#endif
+#ifdef unlock
+#undef unlock
+#endif
+
 #include "math_utils.h"
 #include "noise_simulator.h"
 #include "pose_ekf.h"
-#include "rtklib.h"
 #include "sensor_config.h"
 #include "sensor_simulator.h"
-#include "tf/transform_broadcaster.h"
 
 using namespace std;
 using namespace Eigen;

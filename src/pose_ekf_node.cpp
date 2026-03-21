@@ -17,7 +17,14 @@
 #include <sensor_msgs/Range.h>
 
 #include "pose_ekf.h"
+// RTKLIB defines a "lock" macro that conflicts with boost::signals2/C++ std
 #include "rtklib.h"
+#ifdef lock
+#undef lock
+#endif
+#ifdef unlock
+#undef unlock
+#endif
 
 using namespace std;
 using namespace Eigen;
