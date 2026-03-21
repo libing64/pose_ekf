@@ -86,6 +86,15 @@ void pose_ekf::atti_init(Vector3d acc_raw, Vector3d mag) {
 }
 
 void pose_ekf::predict(Vector3d omega_raw, Vector3d acc_raw, double dt) {
+  /*
+   * Prediction Step (Nominal State Kinematics & Error State Propagation)
+   *
+   * 1. Nominal State Propagation:
+   *    q_{k+1} = q_k ⊗ [1, 0.5 * (w_m - b_w) * dt]^T
+   *    a_ned   = R(q_k) * (a_m - b_a) - g
+   *    p_{k+1} = p_k + v_k * dt + 0.5 * a_ned * dt^2
+   *    v_{k+1} = v_k + a_ned * dt
+   */
   Vector3d acc = acc_raw - acc_bias;
   Vector3d omega = omega_raw - gyro_bias;
 
@@ -108,7 +117,14 @@ void pose_ekf::predict(Vector3d omega_raw, Vector3d acc_raw, double dt) {
   vel += linear_acceleration * dt;
 
   Matrix3d Rnb = Rot;  // body to ned
-  // update P matrix, TODO
+  /*
+   * 2. Error State Transition Matrix (Phi):
+   *    δp_{k+1} = δp_k + δv_k * dt
+   *    δv_{k+1} = δv_k - R * [a_m - b_a]_x * δθ * dt - R * δb_a * dt
+   *    δθ_{k+1} = δθ_k - [w_m - b_w]_x * δθ * dt - δb_w * dt
+   *    δb_a_{k+1} = δb_a_k
+   *    δb_w_{k+1} = δb_w_k
+   */
   Phi = MatrixXd::Identity(n, n);
   Matrix3d I3 = Matrix3d::Identity();
   // Phi.block(3, 6, 3, 3) = -I3 * dt + dt * dt *
@@ -159,6 +175,14 @@ void pose_ekf::predict(Vector3d omega_raw, Vector3d acc_raw, double dt) {
 }
 
 void pose_ekf::update_gps(Vector3d pos, Vector3d vel) {
+  /*
+   * GPS Position and Velocity Update
+   * Measurement Model:
+   *  z = [p_gps, v_gps]^T
+   *  z_pred = [p_nom, v_nom]^T
+   *  H = [ I_{3x3}   0       0   0   0 ]
+   *      [ 0       I_{3x3}   0   0   0 ]
+   */
   MatrixXd H = MatrixXd::Zero(6, n);
   H.block(0, 0, 3, 3) = Matrix3d::Identity();
   H.block(3, 3, 3, 3) = Matrix3d::Identity();
@@ -178,6 +202,11 @@ void pose_ekf::update_gps(Vector3d pos, Vector3d vel) {
 }
 
 void pose_ekf::update_gps_vel(Vector3d vel) {
+  /*
+   * GPS Velocity Update
+   * Measurement Model:
+   *  H = [ 0   I_{3x3}   0   0   0 ]
+   */
   MatrixXd H = MatrixXd::Zero(3, n);
   H.block(0, 3, 3, 3) = Matrix3d::Identity();
 
@@ -191,6 +220,11 @@ void pose_ekf::update_gps_vel(Vector3d vel) {
 }
 
 void pose_ekf::update_gps_pos(Vector3d pos) {
+  /*
+   * GPS Position Update
+   * Measurement Model:
+   *  H = [ I_{3x3}   0   0   0   0 ]
+   */
   MatrixXd H = MatrixXd::Zero(3, n);
   H.block(0, 0, 3, 3) = Matrix3d::Identity();
 
@@ -204,6 +238,16 @@ void pose_ekf::update_gps_pos(Vector3d pos) {
 }
 
 void pose_ekf::update_acc(Vector3d acc_raw) {
+  /*
+   * Accelerometer Update (Attitude Correction)
+   * Uses Multiplicative EKF approach:
+   * 1. Expected gravity in body frame: vz = R^T * g
+   * 2. Calculate small rotation dq between measured acc and expected vz
+   * 3. Convert dq to angle-axis (δθ) as measurement residual
+   *
+   * Measurement Matrix:
+   *  H = [ 0   0   I_{3x3}   0   0 ]
+   */
   Vector3d acc = acc_raw - acc_bias;
 
   Matrix3d Rot = q.toRotationMatrix().transpose();
@@ -227,6 +271,15 @@ void pose_ekf::update_acc(Vector3d acc_raw) {
 }
 
 void pose_ekf::update_magnetic(Vector3d mag_raw) {
+  /*
+   * Magnetometer Update (Heading Correction)
+   * Uses Multiplicative EKF approach:
+   * Calculates a small rotation error between measured magnetic field
+   * and expected reference magnetic field, and maps directly to δθ.
+   *
+   * Measurement Matrix:
+   *  H = [ 0   0   I_{3x3}   0   0 ]
+   */
   printf("%s, %d\n", __FUNCTION__, __LINE__);
   print_state();
   // TODO magenetic in horizon
@@ -261,6 +314,15 @@ void pose_ekf::update_magnetic(Vector3d mag_raw) {
 }
 
 void pose_ekf::update_state() {
+  /*
+   * Error State Injection (Reset/Update)
+   * Injects the estimated error state into the nominal state:
+   *  p = p + δp
+   *  v = v + δv
+   *  q = q ⊗ exp(δθ / 2)
+   *  b_a = b_a + δb_a
+   *  b_w = b_w + δb_w
+   */
   VectorXd dx = kf.get_state();
   cout << "kf.dx: " << dx.transpose() << endl;
   pos += dx.segment(0, 3);
