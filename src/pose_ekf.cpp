@@ -72,7 +72,7 @@ void pose_ekf::atti_init(Vector3d acc_raw, Vector3d mag) {
   this->q.setFromTwoVectors(acc, this->gravity);
 
   Vector3d mag_ned = q.toRotationMatrix() * mag;
-  mag_ned(2) = 0;  // remove z direction
+  mag_ned(2) = 0; // remove z direction
   Vector3d mag_hori = mag_ned.normalized();
 
   Quaterniond dq;
@@ -90,19 +90,25 @@ void pose_ekf::predict(Vector3d omega_raw, Vector3d acc_raw, double dt) {
   Vector3d omega = omega_raw - gyro_bias;
 
   Quaterniond dq;
-  dq.vec() = omega * dt * 0.5;
-  dq.w() = sqrt(1.0 - dq.vec().dot(dq.vec()));
-  this->q *= dq;
-  if (q.w() < 0) q.coeffs() *= -1;
+  Vector3d half_theta = omega * dt * 0.5;
+  dq.vec() = half_theta;
+  double vec_sq_norm = half_theta.squaredNorm();
+  // 增加边界保护，防止因为奇异值或过大的角速度导致 w 出现 NaN
+  dq.w() = (vec_sq_norm < 1.0) ? sqrt(1.0 - vec_sq_norm) : 0.0;
+  dq.normalize(); // 归一化保证严格的旋转属性
 
-  Matrix3d Rot = q.toRotationMatrix();  // body to NED
+  this->q *= dq;
+  if (q.w() < 0)
+    q.coeffs() *= -1;
+
+  Matrix3d Rot = q.toRotationMatrix(); // body to NED
   Vector3d acc_ned = Rot * acc;
   Vector3d linear_acceleration = acc_ned - gravity;
 
   pos += (vel * dt + 0.5 * linear_acceleration * dt * dt);
   vel += linear_acceleration * dt;
 
-  Matrix3d Rnb = Rot;  // body to ned
+  Matrix3d Rnb = Rot; // body to ned
   // update P matrix, TODO
   Phi = MatrixXd::Identity(n, n);
   Matrix3d I3 = Matrix3d::Identity();
@@ -142,8 +148,9 @@ void pose_ekf::predict(Vector3d omega_raw, Vector3d acc_raw, double dt) {
   Fi.block(3, 0, n - 3, n - 3) = MatrixXd::Identity(n - 3, n - 3);
   QQ.block(0, 0, 3, 3) = I3 * ACC_NOISE_DENSITY * ACC_NOISE_DENSITY * dt;
   QQ.block(3, 3, 3, 3) = I3 * GYRO_NOISE_DENSITY * GYRO_NOISE_DENSITY * dt;
-  QQ.block(6, 6, 3, 3) = I3 * ACC_RANDOM_WALK * ACC_RANDOM_WALK;
-  QQ.block(9, 9, 3, 3) = I3 * GYRO_RANDOM_WALK * GYRO_RANDOM_WALK;
+  // 偏置的随机游走方差从连续时间到离散时间需要乘以 dt
+  QQ.block(6, 6, 3, 3) = I3 * ACC_RANDOM_WALK * ACC_RANDOM_WALK * dt;
+  QQ.block(9, 9, 3, 3) = I3 * GYRO_RANDOM_WALK * GYRO_RANDOM_WALK * dt;
   // kf.P = Phi * kf.P * Phi.transpose() + Q;
   kf.P = Phi * kf.P * Phi.transpose() + Fi * QQ * Fi.transpose();
 
@@ -172,6 +179,7 @@ void pose_ekf::update_gps(Vector3d pos, Vector3d vel) {
 }
 
 void pose_ekf::update_gps_vel(Vector3d vel) {
+
   MatrixXd H = MatrixXd::Zero(3, n);
   H.block(0, 3, 3, 3) = Matrix3d::Identity();
 
@@ -198,6 +206,7 @@ void pose_ekf::update_gps_pos(Vector3d pos) {
 }
 
 void pose_ekf::update_acc(Vector3d acc_raw) {
+
   Vector3d acc = acc_raw - acc_bias;
 
   Matrix3d Rot = q.toRotationMatrix().transpose();
@@ -250,7 +259,7 @@ void pose_ekf::update_magnetic(Vector3d mag_raw) {
 
   cout << "mag_ned: " << mag_ned.transpose() << endl;
 
-  mag_ned(2) = 0;  // remove z direction
+  mag_ned(2) = 0; // remove z direction
   Vector3d mag_hori = q.toRotationMatrix().transpose() * mag_ned;
   cout << "mag_hori: " << mag_hori.transpose() << endl;
 
@@ -287,7 +296,8 @@ void pose_ekf::update_state() {
   dq.w() = sqrt(1.0 - dq.vec().dot(dq.vec()));
   q = q * dq;
   q.normalize();
-  if (q.w() < 0) q.coeffs() *= -1;
+  if (q.w() < 0)
+    q.coeffs() *= -1;
   acc_bias += dx.segment(9, 3);
   gyro_bias += dx.segment(12, 3);
 }
