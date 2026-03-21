@@ -1,6 +1,6 @@
 <launch>
 
-  <node name="pose_eskf" pkg="eskf" type="pose_eskf" output="screen">
+  <node name="pose_eskf" pkg="pose_ekf" type="pose_eskf" output="screen">
     <remap from="~imu" to="/imu"/>
     <remap from="~sonar_height" to="/sonar_height"/>
     <remap from="~fix" to="/fix"/>
@@ -8,7 +8,7 @@
     <remap from="~magnetic_field_v3" to="/magnetic"/>
   </node>
 
-    <node pkg="eskf" name="sensor_simulator"  type="sensor_simulator" output="screen">
+    <node pkg="pose_ekf" name="sensor_simulator"  type="sensor_simulator" output="screen">
         <param name="max_acc" type="double" value="1.0" />
     </node>
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find pose_ekf)/rviz/pose_eskf.rviz"/>

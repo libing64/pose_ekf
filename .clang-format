@@ -1,0 +1,40 @@
+---
+BasedOnStyle: Google
+---
+Language:        Cpp
+Standard:        Cpp11
+DerivePointerAlignment: false
+PointerAlignment: Left
+CommentPragmas:  '^ NOLINT'
+IncludeBlocks:   Regroup  # Use 'Preserve' if you want to split headers into groups by yourself
+IncludeCategories:
+  # Note:
+  #   a. The "main" header is priority 0
+  #   b. Put C system/C++ standard/third-party lib headers in angle brackets
+  #   c. Put our own headers in double quotes
+
+  - Regex:       '<lmdb.h>'
+    Priority:    3
+  # C system headers, e.g. <string.h>
+  - Regex:       '^<(arpa/|netinet/|net/if|sys/)?[^\./]*\.h>'
+    Priority:    1
+  # C++ standard librariy, e.g. <string> or <ext/vstring.h>
+  - Regex:       '^<ext/.*>'
+    Priority:    2
+  - Regex:       '^<[^/\./]*>'
+    Priority:    2
+  # Third-party libraries, include boost, eigen, pcl, opencv, google libraries etc
+  - Regex:       '^<'
+    Priority:    3
+  # Protobuf headers, e.g. "common/header.pb.h"
+  - Regex:       '\.pb\.h'
+    Priority:    4
+  # CUDA headers
+  - Regex:       '\.cu$'
+    Priority:    5
+  - Regex:       '\.cuh$'
+    Priority:    5
+  # The rest
+  - Regex:       '.*'
+    Priority:    6
+---
